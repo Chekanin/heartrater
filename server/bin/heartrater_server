@@ -1,0 +1,172 @@
+#!/usr/bin/env python3
+
+from datetime import datetime
+import collections
+import io
+import logging
+import os
+
+import flask
+import matplotlib
+import matplotlib.pyplot
+import matplotlib.dates
+import statistics
+
+# TODO: make global config
+CONFIG_DIR = os.getenv('HEARTRATER_CONFIG_DIR', '/etc/heartrater')
+LOGS_DIR = os.getenv('HEARTRATER_LOGS_DIR', '/var/log/heartrater')
+HOST = os.getenv('HEARTRATER_HOST', 'http://antonchek.me')
+LOGO_IMAGE_URL_PATH = os.getenv('HEARTRATER_PLOT_IMAGE_URL_PATH', '/heartrater/logo.png')
+PLOT_IMAGE_URL_PATH = os.getenv('HEARTRATER_PLOT_IMAGE_URL_PATH', '/heartrater/plot.png')
+PUSH_RATE_URL_PATH = os.getenv('HEARTRATER_PUSH_RATE_URL_PATH', '/heartrater/push')
+GET_RATE_URL_PATH = os.getenv('HEARTRATER_GET_RATE_URL_PATH', '/heartrater/get')
+SERVER_PORT = os.getenv('HEARTRATER_SERVER_PORT', 80)
+STATIC_FILES_DIR = os.getenv('HEARTRATER_STATIC_FILES_DIR', '/usr/local/share/heartrater')
+
+LOGO_IMAGE_FILE_PATH = os.path.join(STATIC_FILES_DIR, 'logo.jpeg')
+PLOT_IMAGE_URL = os.path.join(HOST, PLOT_IMAGE_URL_PATH)
+TOKEN_PATH = os.path.join(CONFIG_DIR, '.server_token')
+
+BUFFER_SIZE = 360
+FONT_CONFIG = {
+    'weight': 500,
+    'size': 28
+}
+PANIC_THRESHOLD = 20
+
+TOKEN = None
+with open(TOKEN_PATH, 'r') as file_input:
+    TOKEN = file_input.read().strip()
+
+matplotlib.rc('font', **FONT_CONFIG)
+
+_logger_ = logging.getLogger("heartrater_server")
+_logger_.setLevel(logging.DEBUG)
+
+log_file_handler = logging.FileHandler(os.path.join(LOGS_DIR, 'server.log'))
+log_file_handler.setLevel(logging.DEBUG)
+log_console_handler = logging.StreamHandler()
+log_console_handler.setLevel(logging.DEBUG)
+
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+log_file_handler.setFormatter(formatter)
+log_console_handler.setFormatter(formatter)
+_logger_.addHandler(log_console_handler)
+_logger_.addHandler(log_file_handler)
+
+app = flask.Flask(__name__)
+
+StampedRate = collections.namedtuple('StampedRate', [
+    'timestamp',
+    'rate'
+])
+
+
+class HeartRateProcessor:
+    def __init__(self):
+        self.buffer_ = collections.deque(maxlen=BUFFER_SIZE)
+        self.zeros_counter_ = 0
+
+    def push(self, stamped_rate):
+        _logger_.debug('Push: timestamp=%.2f, rate=%d' %
+                       (stamped_rate.timestamp, stamped_rate.rate))
+
+        if stamped_rate.rate == 0:
+            self.zeros_counter_ += 1
+        else:
+            self.zeros_counter_ = 0
+            self.buffer_.append(stamped_rate)
+
+        self.check_panic_()
+
+    def get_mean_rate(self):
+        if len(self.buffer_) == 0:
+            return None
+        return statistics.median(map(lambda r: r.rate, self.buffer_))
+
+    def build_plot_image_data(self):
+        result = io.BytesIO()
+
+        if len(self.buffer_) == 0:
+            return result
+
+        x_coordinates = list(map(lambda r: datetime.fromtimestamp(r.timestamp), self.buffer_))
+        y_coordinates = list(map(lambda r: r.rate, self.buffer_))
+
+        figure, axes = matplotlib.pyplot.subplots(figsize=(7.0, 7.0))
+        axes.xaxis.set_major_formatter(matplotlib.dates.DateFormatter('%H:%M'))
+        axes.yaxis.set_major_formatter(
+            matplotlib.ticker.FuncFormatter(lambda x, pos: '%d' % round(x)))
+        axes.xaxis.set_major_locator(matplotlib.pyplot.MaxNLocator(4))
+        axes.yaxis.set_major_locator(matplotlib.pyplot.MaxNLocator(4))
+        axes.plot(x_coordinates, y_coordinates)
+
+        result = io.BytesIO()
+        figure.savefig(result, format='png')
+        result.seek(0)
+
+        return result
+
+    def check_panic_(self):
+        if self.zeros_counter_ >= PANIC_THRESHOLD:
+            self.send_panic_()
+
+    def send_panic_(self):
+        _logger_.warn("Panic!")
+
+
+processor = HeartRateProcessor()
+
+
+@app.route(PUSH_RATE_URL_PATH, methods=['GET'])
+def incoming():
+    _logger_.debug("Push rate: {0}".format(flask.request))
+
+    if flask.request.args.get('token') != TOKEN:
+        return flask.Response(status=403)
+    timestamp = flask.request.args.get('timestamp')
+    rate = flask.request.args.get('rate')
+    if timestamp is None or rate is None or not rate.isdigit():
+        return flask.Response(status=403)
+
+    stamped_rate = StampedRate(timestamp=float(timestamp), rate=int(rate))
+    processor.push(stamped_rate)
+
+    return flask.Response(status=200)
+
+
+@app.route(PLOT_IMAGE_URL_PATH)
+def get_plot_image():
+    _logger_.debug("Request image: {0}".format(flask.request))
+
+    if flask.request.args.get('token') != TOKEN:
+        return flask.Response(status=403)
+
+    image_data = processor.build_plot_image_data()
+
+    return flask.Response(image_data, mimetype='image/png')
+
+
+@app.route(GET_RATE_URL_PATH)
+def get_rate():
+    _logger_.debug("Request image: {0}".format(flask.request))
+
+    if flask.request.args.get('token') != TOKEN:
+        return flask.Response(status=403)
+
+    mean_rate = processor.get_mean_rate()
+
+    return flask.jsonify({
+        'mean_rate': mean_rate,
+        'plot_image_url': PLOT_IMAGE_URL
+    })
+
+
+@app.route(LOGO_IMAGE_URL_PATH)
+def get_logo_image():
+    with open(LOGO_IMAGE_FILE_PATH, 'rb') as image:
+        return flask.Response(io.BytesIO(image.read()), mimetype='image/jpeg')
+
+
+if __name__ == "__main__":
+    app.run(host='0.0.0.0', port=SERVER_PORT, debug=False)

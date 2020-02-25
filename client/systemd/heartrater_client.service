@@ -1,0 +1,14 @@
+[Unit]
+Description=HeartRater client - heart rate monitoring with MiBand4 and notifications
+After=multi-user.target
+
+[Service]
+ExecStart=/usr/bin/python3 /usr/local/bin/heartrater_client
+Type=idle
+PIDFile=/var/run/heartrate_client.pid
+
+User=root
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

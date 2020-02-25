@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-from datetime import datetime
 import logging
 import os
 import requests
@@ -9,11 +8,14 @@ import time
 from bluepy.btle import BTLEDisconnectError
 from miband import miband
 
-BACKEND_URL = 'http://antonchek.me/heartrater/push'
+# TODO: make global config
+CONFIG_DIR = os.getenv('HEARTRATER_CONFIG_DIR', '/etc/heartrater')
+LOGS_DIR = os.getenv('HEARTRATER_LOGS_DIR', '/var/log/heartrater')
+HOST = os.getenv('HEARTRATER_HOST', 'http://antonchek.me')
+PUSH_RATE_URL_PATH = os.getenv('HEARTRATER_PUSH_RATE_URL_PATH', '/heartrater/push')
 
-HOME_PATH = os.getenv('HOME', '~')
-CONFIG_DIR = os.path.join(HOME_PATH, '.heartrater')
-DEVICE_MAC_ADDRESS_PATH  = os.path.join(CONFIG_DIR, '.device_mac_address')
+PUSH_RATE_URL = os.path.join(HOST, PUSH_RATE_URL_PATH)
+DEVICE_MAC_ADDRESS_PATH = os.path.join(CONFIG_DIR, '.device_mac_address')
 DEVICE_TOKEN_PATH = os.path.join(CONFIG_DIR, '.device_token')
 SERVER_TOKEN_PATH = os.path.join(CONFIG_DIR, '.server_token')
 
@@ -32,7 +34,7 @@ with open(SERVER_TOKEN_PATH, 'r') as file_input:
 _logger_ = logging.getLogger("heartrater_client")
 _logger_.setLevel(logging.DEBUG)
 
-log_file_handler = logging.FileHandler(os.path.join(CONFIG_DIR, 'client.log'))
+log_file_handler = logging.FileHandler(os.path.join(LOGS_DIR, 'client.log'))
 log_file_handler.setLevel(logging.DEBUG)
 log_console_handler = logging.StreamHandler()
 log_console_handler.setLevel(logging.DEBUG)
@@ -58,23 +60,28 @@ if AUTH_KEY:
 
 
 class HeartRateProcessor:
-    def __init__(self, data_file_name):
-        self.data_file_name_ = data_file_name
+    def __init__(self):
+        pass
 
     def process(self, rate):
         _logger_.info('Send rate %d' % rate)
+        request_cgi_params = {
+            'timestamp': '%.2f' % time.time(),
+            'rate': rate,
+            'token': SERVER_TOKEN
+        }
         try:
-            requests.get(url=BACKEND_URL, params={
-                'timestamp': '%.2f' % time.time(),
-                'rate': rate,
-                'token': SERVER_TOKEN
-            })
-        except:
-            pass
+            requests.get(url=PUSH_RATE_URL, params=request_cgi_params, timeout=3.0)
+        except (requests.ConnectTimeout,
+                requests.ConnectionError,
+                requests.HTTPError,
+                requests.ReadTimeout,
+                requests.Timeout):
+            _logger_.error('Bad request. params: %s' % str(request_cgi_params))
 
 
 if __name__ == "__main__":
-    heart_rate_processor = HeartRateProcessor('/home/pi/heart_rate.tsv')
+    heart_rate_processor = HeartRateProcessor()
     while True:
         try:
             band = miband(MAC_ADDR, AUTH_KEY, debug=True)
@@ -90,8 +97,8 @@ if __name__ == "__main__":
             print("\nExit.")
             exit()
         except Exception as exception:
-            _logger_.error("Unexpect exception: %s %s" % (type(exception), str(exception)))
+            _logger_.error("Unexpected exception: %s %s" % (type(exception), str(exception)))
             time.sleep(3)
             continue
-            
+
     exit(1)

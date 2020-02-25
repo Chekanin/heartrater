@@ -1,11 +1,12 @@
 import sys,os,time
 import logging
 from bluepy.btle import Peripheral, DefaultDelegate, ADDR_TYPE_RANDOM,ADDR_TYPE_PUBLIC, BTLEException
-from constants import UUIDS, AUTH_STATES, ALERT_TYPES, QUEUE_TYPES, MUSICSTATE
 import struct
 from datetime import datetime, timedelta
 from Crypto.Cipher import AES
 from datetime import datetime
+
+from miband.constants import UUIDS, AUTH_STATES, ALERT_TYPES, QUEUE_TYPES, MUSICSTATE
 
 try:
     from Queue import Queue, Empty
