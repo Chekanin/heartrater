@@ -2,6 +2,8 @@
 
 from glob import glob
 from setuptools import setup
+import os
+
 
 setup(
     name='heartrater_server',
@@ -20,3 +22,7 @@ setup(
         ('/etc/heartrater', glob('conf/*'))
     ]
 )
+
+LOGS_DIR = '/var/log/heartrater'
+if not os.path.exists(LOGS_DIR):
+    os.makedirs(LOGS_DIR)
