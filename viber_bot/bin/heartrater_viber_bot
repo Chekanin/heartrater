@@ -116,6 +116,8 @@ def incoming():
 
 def set_webhook(viber):
     public_url = ngrok.connect(port=VIBER_BOT_PORT, proto='http', options={'bind_tls': True})
+    public_url = public_url.replace('http://', 'https://')
+    _logger_.info('Set public url: %s' % public_url)
     viber.set_webhook(public_url)
 
 
