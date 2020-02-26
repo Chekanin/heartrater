@@ -12,9 +12,8 @@ from miband import miband
 CONFIG_DIR = os.getenv('HEARTRATER_CONFIG_DIR', '/etc/heartrater')
 LOGS_DIR = os.getenv('HEARTRATER_LOGS_DIR', '/var/log/heartrater')
 HOST = os.getenv('HEARTRATER_HOST', 'http://antonchek.me')
-PUSH_RATE_URL_PATH = os.getenv('HEARTRATER_PUSH_RATE_URL_PATH', '/heartrater/push')
+PUSH_RATE_URL_PATH = os.getenv('HEARTRATER_PUSH_RATE_URL_PATH', 'heartrater/push')
 
-PUSH_RATE_URL = os.path.join(HOST, PUSH_RATE_URL_PATH)
 DEVICE_MAC_ADDRESS_PATH = os.path.join(CONFIG_DIR, '.device_mac_address')
 DEVICE_TOKEN_PATH = os.path.join(CONFIG_DIR, '.device_token')
 SERVER_TOKEN_PATH = os.path.join(CONFIG_DIR, '.server_token')
@@ -30,6 +29,8 @@ with open(DEVICE_TOKEN_PATH, 'r') as file_input:
 SERVER_TOKEN = None
 with open(SERVER_TOKEN_PATH, 'r') as file_input:
     SERVER_TOKEN = file_input.read().strip()
+
+PUSH_RATE_URL = os.path.join(HOST, PUSH_RATE_URL_PATH) + '?token=' + SERVER_TOKEN
 
 _logger_ = logging.getLogger("heartrater_client")
 _logger_.setLevel(logging.DEBUG)

@@ -25,9 +25,9 @@ from viberbot.api.viber_requests import ViberUnsubscribedRequest
 CONFIG_DIR = os.getenv('HEARTRATER_CONFIG_DIR', '/etc/heartrater')
 LOGS_DIR = os.getenv('HEARTRATER_LOGS_DIR', '/var/log/heartrater')
 HOST = os.getenv('HEARTRATER_HOST', 'http://antonchek.me')
-GET_RATE_URL_PATH = os.getenv('HEARTRATER_GET_RATE_URL_PATH', '/heartrater/get')
-LOGO_IMAGE_URL_PATH = os.getenv('HEARTRATER_PLOT_IMAGE_URL_PATH', '/heartrater/logo.png')
-PLOT_IMAGE_URL_PATH = os.getenv('HEARTRATER_PLOT_IMAGE_URL_PATH', '/heartrater/plot.png')
+GET_RATE_URL_PATH = os.getenv('HEARTRATER_GET_RATE_URL_PATH', 'heartrater/get')
+LOGO_IMAGE_URL_PATH = os.getenv('HEARTRATER_PLOT_IMAGE_URL_PATH', 'heartrater/logo.png')
+PLOT_IMAGE_URL_PATH = os.getenv('HEARTRATER_PLOT_IMAGE_URL_PATH', '/eartrater/plot.png')
 VIBER_BOT_PORT = os.getenv('HEARTRATER_VIBER_BOT_PORT', 9090)
 
 TOKEN_PATH = os.path.join(CONFIG_DIR, '.viber_token')
