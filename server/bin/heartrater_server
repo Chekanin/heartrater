@@ -37,7 +37,7 @@ TOKEN = None
 with open(TOKEN_PATH, 'r') as file_input:
     TOKEN = file_input.read().strip()
 
-PLOT_IMAGE_URL = os.path.join(HOST, PLOT_IMAGE_URL_PATH)
+PLOT_IMAGE_URL = os.path.join(HOST, PLOT_IMAGE_URL_PATH) + '?token=' + TOKEN
 
 matplotlib.rc('font', **FONT_CONFIG)
 

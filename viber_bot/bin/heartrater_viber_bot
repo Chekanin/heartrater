@@ -27,7 +27,6 @@ LOGS_DIR = os.getenv('HEARTRATER_LOGS_DIR', '/var/log/heartrater')
 HOST = os.getenv('HEARTRATER_HOST', 'http://antonchek.me')
 GET_RATE_URL_PATH = os.getenv('HEARTRATER_GET_RATE_URL_PATH', 'heartrater/get')
 LOGO_IMAGE_URL_PATH = os.getenv('HEARTRATER_PLOT_IMAGE_URL_PATH', 'heartrater/logo.png')
-PLOT_IMAGE_URL_PATH = os.getenv('HEARTRATER_PLOT_IMAGE_URL_PATH', '/eartrater/plot.png')
 VIBER_BOT_PORT = os.getenv('HEARTRATER_VIBER_BOT_PORT', 9090)
 
 TOKEN_PATH = os.path.join(CONFIG_DIR, '.viber_token')
@@ -43,7 +42,6 @@ SERVER_TOKEN = None
 with open(SERVER_TOKEN_PATH, 'r') as file_input:
     SERVER_TOKEN = file_input.read().strip()
 
-PLOT_IMAGE_URL = os.path.join(HOST, PLOT_IMAGE_URL_PATH) + '?token=' + SERVER_TOKEN
 
 _logger_ = logging.getLogger("heartrater_server")
 _logger_.setLevel(logging.DEBUG)
@@ -79,12 +77,18 @@ def incoming():
         viber_request, viber_request.get_user, viber_request.get_user.id))
 
     if isinstance(viber_request, ViberMessageRequest):
+        image_url = None
         image_title = None
         try:
             response = requests.get(url=GET_RATE_URL, timeout=3.0)
+            image_url = response.json().get('plot_image_url')
             mean_rate = response.json().get('mean_rate')
-            if mean_rate is not None:
-                image_title = u'Mean rate: %d bits/s' % round(float(mean_rate))
+
+            if image_url is None or mean_rate is None:
+                _logger_.error('Bad response: %s' % str(response))
+                return Response(status=200)
+
+            image_title = u'Mean rate: %d bits/s' % round(float(mean_rate))
         except (requests.ConnectTimeout,
                 requests.ConnectionError,
                 requests.HTTPError,
@@ -92,15 +96,14 @@ def incoming():
                 requests.ReadTimeout,
                 requests.Timeout):
             _logger_.error('Bad request.')
+            return Response(status=200)
 
-        message = None
-        if image_title is not None:
-            message = PictureMessage(media=PLOT_IMAGE_URL, text=image_title)
-        else:
-            message = PictureMessage(media=PLOT_IMAGE_URL)
+        message = PictureMessage(media=image_url, text=image_title)
         viber.send_messages(viber_request.sender.id, [
             message
         ])
+        _logger_.info('Send message: %s' % str(message))
+
     elif isinstance(viber_request, ViberConversationStartedRequest) \
             or isinstance(viber_request, ViberSubscribedRequest) \
             or isinstance(viber_request, ViberUnsubscribedRequest):
@@ -109,8 +112,6 @@ def incoming():
         ])
     elif isinstance(viber_request, ViberFailedRequest):
         _logger_.warn("client failed receiving message. failure: {0}".format(viber_request))
-
-    return Response(status=200)
 
 
 def set_webhook(viber):
