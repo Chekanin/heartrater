@@ -73,8 +73,6 @@ def incoming():
         return Response(status=403)
 
     viber_request = viber.parse_request(request.get_data().decode('utf8'))
-    _logger_.debug("Viber request: {0} viber_user: {1}, viber_user_id: {2}".format(
-        viber_request, viber_request.get_user, viber_request.get_user.id))
 
     if isinstance(viber_request, ViberMessageRequest):
         image_url = None
@@ -102,7 +100,8 @@ def incoming():
         viber.send_messages(viber_request.sender.id, [
             message
         ])
-        _logger_.info('Send message: %s' % str(message))
+        _logger_.info('Send message: %s to %s (%s)' %
+                      (str(message), str(viber_request.sender), viber_request.sender.id))
 
     elif isinstance(viber_request, ViberConversationStartedRequest) \
             or isinstance(viber_request, ViberSubscribedRequest) \
