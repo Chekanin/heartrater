@@ -25,8 +25,7 @@ class Delegate(DefaultDelegate):
         self.pkg = 0
 
     def handleNotification(self, hnd, data):
-        self._log.info('Receive data %d, %s' % (hnd, str(data)))
-
+        print('Receive data %d, %s' % (hnd, str(data)))
         if hnd == self.device._char_auth.getHandle():
             if data[:3] == b'\x10\x01\x01':
                 self.device._req_rdn()
@@ -98,7 +97,7 @@ class Delegate(DefaultDelegate):
 
         #music controls
         elif(hnd == 74):
-            self._log.info('Music control %s' % str(data))
+            print('Music control %s' % str(data))
             return
             if(data[1:] == b'\xe0'):
                 self.device.setMusic()
@@ -592,6 +591,3 @@ class miband(Peripheral):
             buf+=bytes(track,'utf-8')
             buf+=bytes([0])
         self.writeChunked(3,buf)
-
-
-
