@@ -3,6 +3,7 @@
 
 import logging
 import os
+import json
 import sched
 import threading
 import time
@@ -32,7 +33,6 @@ VIBER_BOT_PORT = os.getenv('HEARTRATER_VIBER_BOT_PORT', 9090)
 TOKEN_PATH = os.path.join(CONFIG_DIR, '.viber_token')
 SERVER_TOKEN_PATH = os.path.join(CONFIG_DIR, '.server_token')
 LOGO_URL = os.path.join(HOST, LOGO_IMAGE_URL_PATH)
-GET_RATE_URL = os.path.join(HOST, GET_RATE_URL_PATH)
 
 TOKEN = None
 with open(TOKEN_PATH, 'r') as file_input:
@@ -41,6 +41,8 @@ with open(TOKEN_PATH, 'r') as file_input:
 SERVER_TOKEN = None
 with open(SERVER_TOKEN_PATH, 'r') as file_input:
     SERVER_TOKEN = file_input.read().strip()
+
+GET_RATE_URL = os.path.join(HOST, GET_RATE_URL_PATH) + '?token=' + SERVER_TOKEN
 
 
 _logger_ = logging.getLogger("heartrater_server")
@@ -75,33 +77,9 @@ def incoming():
     viber_request = viber.parse_request(request.get_data().decode('utf8'))
 
     if isinstance(viber_request, ViberMessageRequest):
-        image_url = None
-        image_title = None
-        try:
-            response = requests.get(url=GET_RATE_URL, timeout=3.0)
-            image_url = response.json().get('plot_image_url')
-            mean_rate = response.json().get('mean_rate')
-
-            if image_url is None or mean_rate is None:
-                _logger_.error('Bad response: %s' % str(response))
-                return Response(status=200)
-
-            image_title = u'Mean rate: %d bits/s' % round(float(mean_rate))
-        except (requests.ConnectTimeout,
-                requests.ConnectionError,
-                requests.HTTPError,
-                requests.JSONDecodeError,
-                requests.ReadTimeout,
-                requests.Timeout):
-            _logger_.error('Bad request.')
-            return Response(status=200)
-
-        message = PictureMessage(media=image_url, text=image_title)
-        viber.send_messages(viber_request.sender.id, [
-            message
-        ])
-        _logger_.info('Send message: %s to %s (%s)' %
-                      (str(message), str(viber_request.sender), viber_request.sender.id))
+        viber_user_id = viber_request.sender.id
+        subscribe_user(viber_user_id)
+        _logger_.info('set user_id=%s' % viber_user_id)
 
     elif isinstance(viber_request, ViberConversationStartedRequest) \
             or isinstance(viber_request, ViberSubscribedRequest) \
@@ -111,6 +89,8 @@ def incoming():
         ])
     elif isinstance(viber_request, ViberFailedRequest):
         _logger_.warn("client failed receiving message. failure: {0}".format(viber_request))
+            
+    return Response(status=200)
 
 
 def set_webhook(viber):
@@ -118,6 +98,43 @@ def set_webhook(viber):
     public_url = public_url.replace('http://', 'https://')
     _logger_.info('Set public url: %s' % public_url)
     viber.set_webhook(public_url)
+    
+def subscribe_user(viber_user_id):
+    ss = sched.scheduler(time.time, time.sleep)
+    ss.enter(30 * 60, 1, send_rate_info, (viber, viber_user_id, ss))
+    tt = threading.Thread(target=ss.run)
+    tt.start()
+
+def send_rate_info(viber, viber_user_id, ss):
+    _logger_.info('send rate info to %s' % viber_user_id)
+    
+    ss.enter(30 * 60, 1, send_rate_info, (viber, viber_user_id, ss))
+        
+    image_url = None
+    image_title = None
+    try:
+        response = requests.get(url=GET_RATE_URL, timeout=3.0)
+        image_url = response.json().get('plot_image_url')
+        mean_rate = response.json().get('mean_rate')
+
+        if image_url is None or mean_rate is None:
+            _logger_.error('Bad response: %s' % str(response))
+            return
+
+        image_title = u'Mean rate: %d bits/s' % round(float(mean_rate))
+    except (requests.ConnectTimeout,
+            requests.ConnectionError,
+            requests.HTTPError,
+            json.JSONDecodeError,
+            requests.ReadTimeout,
+            requests.Timeout):
+        _logger_.error('Bad request.')
+        return
+
+    message = PictureMessage(media=image_url, text=image_title)
+    viber.send_messages(viber_user_id, [message])
+    _logger_.info('Send message: %s to %s' %
+                  (str(message), viber_user_id))
 
 
 if __name__ == "__main__":
