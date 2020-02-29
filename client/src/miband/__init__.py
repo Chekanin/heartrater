@@ -25,6 +25,8 @@ class Delegate(DefaultDelegate):
         self.pkg = 0
 
     def handleNotification(self, hnd, data):
+        self._log.info('Receive data %d, %s' % (hnd, str(data)))
+
         if hnd == self.device._char_auth.getHandle():
             if data[:3] == b'\x10\x01\x01':
                 self.device._req_rdn()
@@ -96,6 +98,8 @@ class Delegate(DefaultDelegate):
 
         #music controls
         elif(hnd == 74):
+            self._log.info('Music control %s' % str(data))
+            return
             if(data[1:] == b'\xe0'):
                 self.device.setMusic()
                 if(self.device._default_music_focus_in):
@@ -357,19 +361,6 @@ class miband(Peripheral):
         packet = b'\x06\x17\x00' + packet
         return char.write(packet)
 
-    def set_heart_monitor_sleep_support(self, enabled=True, measure_minute_interval=1):
-        char_m = self.svc_heart.getCharacteristics(UUIDS.CHARACTERISTIC_HEART_RATE_MEASURE)[0]
-        char_d = char_m.getDescriptors(forUUID=UUIDS.NOTIFICATION_DESCRIPTOR)[0]
-        char_d.write(b'\x01\x00', True)
-        self._char_heart_ctrl.write(b'\x15\x00\x00', True)
-        # measure interval set to off
-        self._char_heart_ctrl.write(b'\x14\x00', True)
-        if enabled:
-            self._char_heart_ctrl.write(b'\x15\x00\x01', True)
-            # measure interval set
-            self._char_heart_ctrl.write(b'\x14' + str(measure_minute_interval).encode(), True)
-        char_d.write(b'\x00\x00', True)
-
     def get_serial(self):
         svc = self.getServiceByUUID(UUIDS.SERVICE_DEVICE_INFO)
         char = svc.getCharacteristics(UUIDS.CHARACTERISTIC_SERIAL)[0]
@@ -584,7 +575,7 @@ class miband(Peripheral):
             self._default_music_focus_out = focusout
 
     def setMusic(self):
-        print("setMusic")
+        self._log.info('setMusic')
         return
         track = self.track
         state = self.pp_state
