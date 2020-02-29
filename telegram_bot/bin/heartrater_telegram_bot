@@ -1,0 +1,83 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+import logging
+import os
+
+from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
+
+
+# TODO: make global config
+CONFIG_DIR = os.getenv('HEARTRATER_CONFIG_DIR', '/etc/heartrater')
+LOGS_DIR = os.getenv('HEARTRATER_LOGS_DIR', '/var/log/heartrater')
+HOST = os.getenv('HEARTRATER_HOST', 'http://antonchek.me')
+GET_RATE_URL_PATH = os.getenv('HEARTRATER_GET_RATE_URL_PATH', 'heartrater/get')
+TELEGRAM_BOT_PORT = os.getenv('HEARTRATER_TELEGRAM_BOT_PORT', 5050)
+
+TOKEN_PATH = os.path.join(CONFIG_DIR, '.telegram_token')
+SERVER_TOKEN_PATH = os.path.join(CONFIG_DIR, '.server_token')
+
+TOKEN = None
+with open(TOKEN_PATH, 'r') as file_input:
+    TOKEN = file_input.read().strip()
+
+SERVER_TOKEN = None
+with open(SERVER_TOKEN_PATH, 'r') as file_input:
+    SERVER_TOKEN = file_input.read().strip()
+
+GET_RATE_URL = os.path.join(HOST, GET_RATE_URL_PATH) + '?token=' + SERVER_TOKEN
+
+# Enable logging
+_logger_ = logging.getLogger("heartrater_telegram_bot")
+_logger_.setLevel(logging.DEBUG)
+
+log_file_handler = logging.FileHandler(os.path.join(LOGS_DIR, 'telegram_bot.log'))
+log_file_handler.setLevel(logging.DEBUG)
+log_console_handler = logging.StreamHandler()
+log_console_handler.setLevel(logging.DEBUG)
+
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+log_file_handler.setFormatter(formatter)
+log_console_handler.setFormatter(formatter)
+_logger_.addHandler(log_console_handler)
+_logger_.addHandler(log_file_handler)
+
+
+# Define a few command handlers. These usually take the two arguments update and
+# context. Error handlers also receive the raised TelegramError object in error.
+def start(update, context):
+    """Send a message when the command /start is issued."""
+    update.message.reply_text('Hi!')
+
+
+def help(update, context):
+    """Send a message when the command /help is issued."""
+    update.message.reply_text('Help!')
+
+
+def echo(update, context):
+    """Echo the user message."""
+    update.message.reply_text(update.message.text)
+
+
+def error(update, context):
+    """Log Errors caused by Updates."""
+    _logger_.error('Update "%s" caused error "%s"', update, context.error)
+
+
+def main():
+    """Start the bot."""
+    updater = Updater(TOKEN, use_context=True)
+    dispatcher = updater.dispatcher
+
+    dispatcher.add_handler(CommandHandler("start", start))
+    dispatcher.add_handler(CommandHandler("help", help))
+    dispatcher.add_handler(MessageHandler(Filters.text, echo))
+    dispatcher.add_error_handler(error)
+
+    updater.start_polling()
+    updater.idle()
+
+
+if __name__ == '__main__':
+    main()
