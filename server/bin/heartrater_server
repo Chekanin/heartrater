@@ -20,6 +20,7 @@ LOGO_IMAGE_URL_PATH = os.getenv('HEARTRATER_PLOT_IMAGE_URL_PATH', 'heartrater/lo
 PLOT_IMAGE_URL_PATH = os.getenv('HEARTRATER_PLOT_IMAGE_URL_PATH', 'heartrater/plot.png')
 PUSH_RATE_URL_PATH = os.getenv('HEARTRATER_PUSH_RATE_URL_PATH', 'heartrater/push')
 GET_RATE_URL_PATH = os.getenv('HEARTRATER_GET_RATE_URL_PATH', 'heartrater/get')
+CHECK_PANIC_URL_PATH = os.getenv('HEARTRATER_GET_RATE_URL_PATH', 'heartrater/check_panic')
 SERVER_PORT = os.getenv('HEARTRATER_SERVER_PORT', 80)
 STATIC_FILES_DIR = os.getenv('HEARTRATER_STATIC_FILES_DIR', '/usr/local/share/heartrater')
 
@@ -66,16 +67,21 @@ StampedRate = collections.namedtuple('StampedRate', [
 class HeartRateProcessor:
     def __init__(self):
         self.buffer_ = collections.deque(maxlen=BUFFER_SIZE)
-        self.zeros_counter_ = 0
+        self.first_panic_timestamp_ = None
+        self.first_zero_measurement_timestamp_ = None
+        self.zero_measurements_counter_ = 0
 
     def push(self, stamped_rate):
         _logger_.debug('Push: timestamp=%.2f, rate=%d' %
                        (stamped_rate.timestamp, stamped_rate.rate))
 
         if stamped_rate.rate == 0:
-            self.zeros_counter_ += 1
+            if self.zero_measurements_counter_ == 0:
+                self.first_zero_measurement_timestamp_ = stamped_rate.timestamp
+            self.zero_measurements_counter_ += 1
         else:
-            self.zeros_counter_ = 0
+            self.first_zero_measurement_timestamp_ = None
+            self.zero_measurements_counter_ = 0
             self.buffer_.append(stamped_rate)
 
         self.check_panic_()
@@ -108,19 +114,22 @@ class HeartRateProcessor:
 
         return result
 
-    def check_panic_(self):
-        if self.zeros_counter_ >= PANIC_THRESHOLD:
-            self.send_panic_()
+    def get_first_panic_timestamp(self):
+        return self.first_panic_timestamp_
 
-    def send_panic_(self):
-        _logger_.warn("Panic!")
+    def check_panic_(self):
+        if self.zero_measurements_counter_ >= PANIC_THRESHOLD:
+            _logger_.warn("Panic!")
+            self.first_panic_timestamp_ = self.first_zero_measurement_timestamp_
+        else:
+            self.first_panic_timestamp_ = None
 
 
 processor = HeartRateProcessor()
 
 
 @app.route('/' + PUSH_RATE_URL_PATH, methods=['GET'])
-def incoming():
+def push_rate():
     _logger_.debug("Push rate: {0}".format(flask.request))
 
     if flask.request.args.get('token') != TOKEN:
@@ -161,6 +170,22 @@ def get_rate():
         'mean_rate': mean_rate,
         'plot_image_url': PLOT_IMAGE_URL
     })
+
+
+@app.route('/' + CHECK_PANIC_URL_PATH)
+def chek_panic():
+    _logger_.debug("Check panic: {0}".format(flask.request))
+
+    first_panic_timestamp = processor.get_first_panic_timestamp()
+    has_panic = first_panic_timestamp is not None
+
+    result = {
+        'has_panic': has_panic,
+    }
+    if has_panic:
+        result['first_panic_timestamp'] = first_panic_timestamp
+
+    return flask.jsonify(result)
 
 
 @app.route('/' + LOGO_IMAGE_URL_PATH)

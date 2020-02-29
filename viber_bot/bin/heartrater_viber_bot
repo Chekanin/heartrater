@@ -89,7 +89,7 @@ def incoming():
         ])
     elif isinstance(viber_request, ViberFailedRequest):
         _logger_.warn("client failed receiving message. failure: {0}".format(viber_request))
-            
+
     return Response(status=200)
 
 
@@ -98,18 +98,20 @@ def set_webhook(viber):
     public_url = public_url.replace('http://', 'https://')
     _logger_.info('Set public url: %s' % public_url)
     viber.set_webhook(public_url)
-    
+
+
 def subscribe_user(viber_user_id):
     ss = sched.scheduler(time.time, time.sleep)
     ss.enter(30 * 60, 1, send_rate_info, (viber, viber_user_id, ss))
     tt = threading.Thread(target=ss.run)
     tt.start()
 
+
 def send_rate_info(viber, viber_user_id, ss):
     _logger_.info('send rate info to %s' % viber_user_id)
-    
+
     ss.enter(30 * 60, 1, send_rate_info, (viber, viber_user_id, ss))
-        
+
     image_url = None
     image_title = None
     try:
@@ -121,7 +123,7 @@ def send_rate_info(viber, viber_user_id, ss):
             _logger_.error('Bad response: %s' % str(response))
             return
 
-        image_title = u'Mean rate: %d bits/s' % round(float(mean_rate))
+        image_title = u'Пульс: %d ударов/мин' % round(float(mean_rate))
     except (requests.ConnectTimeout,
             requests.ConnectionError,
             requests.HTTPError,
