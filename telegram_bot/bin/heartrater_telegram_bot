@@ -47,6 +47,7 @@ _logger_.addHandler(log_file_handler)
 # context. Error handlers also receive the raised TelegramError object in error.
 def start(update, context):
     """Send a message when the command /start is issued."""
+    _logger_.info('Start bot: %s, %s' % (update, context))
     update.message.reply_text('Hi!')
 
 
@@ -57,6 +58,7 @@ def help(update, context):
 
 def echo(update, context):
     """Echo the user message."""
+    _logger_.info('Receive message: %s, %s' % (update, context))
     update.message.reply_text(update.message.text)
 
 
@@ -76,6 +78,7 @@ def main():
     dispatcher.add_error_handler(error)
 
     updater.start_polling()
+    _logger_.info('Bot initialized')
     updater.idle()
 
 
