@@ -43,12 +43,22 @@ _logger_.addHandler(log_console_handler)
 _logger_.addHandler(log_file_handler)
 
 
-# Define a few command handlers. These usually take the two arguments update and
-# context. Error handlers also receive the raised TelegramError object in error.
+def check_panic(context):
+    #  if check_remind():
+    #  for r in check_remind():
+    #  remind = f"📌Remind ❗️{r['remind_text']}\n"
+    #  user_chat_id = r['chat_id']
+
+    context.bot.send_message(chat_id=context.job.context, text='CHECK!')
+
+
 def start(update, context):
     """Send a message when the command /start is issued."""
     _logger_.info('Start bot: %s, %s' % (update, context))
-    update.message.reply_text('Hi!')
+
+    context.job_queue.run_repeating(check_panic, 60, context=update.message.chat_id)
+
+    update.message.reply_text('Hi! I\'m subscribe you to heart rate monitoring.')
 
 
 def help(update, context):
@@ -76,6 +86,9 @@ def main():
     dispatcher.add_handler(CommandHandler("help", help))
     dispatcher.add_handler(MessageHandler(Filters.text, echo))
     dispatcher.add_error_handler(error)
+
+    job_queue = updater.job_queue
+    job_queue.run_repeating(check_panic, interval=60,  first=0)
 
     updater.start_polling()
     _logger_.info('Bot initialized')
