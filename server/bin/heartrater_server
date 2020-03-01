@@ -183,7 +183,7 @@ def chek_panic():
         'has_panic': has_panic,
     }
     if has_panic:
-        result['first_panic_timestamp'] = first_panic_timestamp
+        result['first_panic_timestamp'] = int(first_panic_timestamp)
 
     return flask.jsonify(result)
 
