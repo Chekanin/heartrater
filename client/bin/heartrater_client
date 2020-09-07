@@ -102,13 +102,16 @@ if __name__ == "__main__":
             band.initialize()
             _logger_.info('Finish init')
 
+            time.sleep(2)
             now = datetime.datetime.now()
             _logger_.info('Set time to:', now)
             band.set_current_time(now)
 
+            time.sleep(2)
             battery_info = band.get_battery_info()
             send_battery_info(battery_info)
 
+            time.sleep(2)
             band.start_heart_rate_realtime(heart_measure_callback=heart_rate_processor.process)
         except BTLEDisconnectError:
             _logger_.error('Connection to the MIBand failed. Trying out again in 3 seconds')
