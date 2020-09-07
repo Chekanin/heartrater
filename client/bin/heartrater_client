@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import datetime
 import logging
 import os
 import requests
@@ -89,6 +90,11 @@ if __name__ == "__main__":
             _logger_.info('Start init')
             band.initialize()
             _logger_.info('Finish init')
+
+            now = datetime.datetime.now()
+            _logger_.info('Set time to:', now)
+            band.set_current_time(now)
+
             band.start_heart_rate_realtime(heart_measure_callback=heart_rate_processor.process)
         except BTLEDisconnectError:
             _logger_.error('Connection to the MIBand failed. Trying out again in 3 seconds')
