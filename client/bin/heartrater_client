@@ -14,6 +14,7 @@ CONFIG_DIR = os.getenv('HEARTRATER_CONFIG_DIR', '/etc/heartrater')
 LOGS_DIR = os.getenv('HEARTRATER_LOGS_DIR', '/var/log/heartrater')
 HOST = os.getenv('HEARTRATER_HOST', 'http://antonchek.me')
 PUSH_RATE_URL_PATH = os.getenv('HEARTRATER_PUSH_RATE_URL_PATH', 'heartrater/push')
+PUSH_BATTERY_URL_PATH = os.getenv('HEARTRATER_PUSH_BATTERY_URL_PATH', 'heartrater/push_battery')
 
 DEVICE_MAC_ADDRESS_PATH = os.path.join(CONFIG_DIR, '.device_mac_address')
 DEVICE_TOKEN_PATH = os.path.join(CONFIG_DIR, '.device_token')
@@ -32,6 +33,7 @@ with open(SERVER_TOKEN_PATH, 'r') as file_input:
     SERVER_TOKEN = file_input.read().strip()
 
 PUSH_RATE_URL = os.path.join(HOST, PUSH_RATE_URL_PATH) + '?token=' + SERVER_TOKEN
+PUSH_BATTERY_URL = os.path.join(HOST, PUSH_BATTERY_URL_PATH) + '?token=' + SERVER_TOKEN
 
 _logger_ = logging.getLogger("heartrater_client")
 _logger_.setLevel(logging.DEBUG)
@@ -61,6 +63,17 @@ if AUTH_KEY:
     AUTH_KEY = bytes.fromhex(AUTH_KEY)
 
 
+def send_data(data, url):
+    try:
+        requests.get(url=url, params=data, timeout=3.0)
+    except (requests.ConnectTimeout,
+            requests.ConnectionError,
+            requests.HTTPError,
+            requests.ReadTimeout,
+            requests.Timeout):
+        _logger_.error('Bad request. params: %s' % str(request_cgi_params))
+
+
 class HeartRateProcessor:
     def __init__(self):
         pass
@@ -72,14 +85,12 @@ class HeartRateProcessor:
             'rate': rate,
             'token': SERVER_TOKEN
         }
-        try:
-            requests.get(url=PUSH_RATE_URL, params=request_cgi_params, timeout=3.0)
-        except (requests.ConnectTimeout,
-                requests.ConnectionError,
-                requests.HTTPError,
-                requests.ReadTimeout,
-                requests.Timeout):
-            _logger_.error('Bad request. params: %s' % str(request_cgi_params))
+        send_data(data=request_cgi_params, url=PUSH_RATE_URL)
+
+
+def send_battery_info(battery_info):
+    _logger_.info('Send battery data %s' % str(battery_info))
+    send_data(data=battery_info, url=PUSH_BATTERY_URL)
 
 
 if __name__ == "__main__":
@@ -94,6 +105,9 @@ if __name__ == "__main__":
             now = datetime.datetime.now()
             _logger_.info('Set time to:', now)
             band.set_current_time(now)
+
+            battery_info = band.get_battery_info()
+            send_battery_info(battery_info)
 
             band.start_heart_rate_realtime(heart_measure_callback=heart_rate_processor.process)
         except BTLEDisconnectError:
